@@ -25,6 +25,9 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -34,20 +37,22 @@ jobs:
         run: |
           SETTINGS_FILE=$(find . -maxdepth 4 -name 'settings.gradle' | head -n 1)
           if [ -z "$SETTINGS_FILE" ]; then
-            echo "Error: settings.gradle not found!"
-            ls -la
+            echo "ERROR: settings.gradle not found!"
+            find . -maxdepth 3
             exit 1
           fi
           PROJECT_DIR=$(dirname "$SETTINGS_FILE")
           echo "Building project in: $PROJECT_DIR"
           cd "$PROJECT_DIR"
-          gradle assembleDebug --stacktrace
+
+          if ! grep -q "kotlin-bom" app/build.gradle; then
+            python3 -c 'p="app/build.gradle"; s=open(p).read(); open(p,"w").write(s.replace("dependencies {", "dependencies {\n    implementation platform(\"org.jetbrains.kotlin:kotlin-bom:1.8.22\")", 1))'
+          fi
+
+          gradle assembleDebug --no-daemon
           cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/Emdad-v1.0.apk"
 
-dependencies {
-    implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.22')
-    implementation 'androidx.appcompat:appcompat:1.7.0'
-}
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Emdad-Android-APK
